@@ -30,10 +30,28 @@ import java.util.Map;
  * @author David Erickson (daviderickson@cs.stanford.edu)
  *
  */
+
+//0                   1                   2                   3
+//0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//|Version|  IHL  |Type of Service|          Total Length         |
+//+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//|         Identification        |Flags|      Fragment Offset    |
+//+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//|  Time to Live |    Protocol   |         Header Checksum       |
+//+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//|                       Source Address                          |
+//+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//|                    Destination Address                        |
+//+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//|                    Options                    |    Padding    |
+//+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
 public class IPv4 extends BasePacket {
     public static final byte PROTOCOL_ICMP = 0x1;
     public static final byte PROTOCOL_TCP = 0x6;
     public static final byte PROTOCOL_UDP = 0x11;
+    public static final byte PROTOCOL_IGMP = 0x2;
     public static Map<Byte, Class<? extends IPacket>> protocolClassMap;
 
     static {
@@ -41,6 +59,7 @@ public class IPv4 extends BasePacket {
         protocolClassMap.put(PROTOCOL_ICMP, ICMP.class);
         protocolClassMap.put(PROTOCOL_TCP, TCP.class);
         protocolClassMap.put(PROTOCOL_UDP, UDP.class);
+        protocolClassMap.put(PROTOCOL_IGMP, IGMP.class);
     }
 
     public static final byte IPV4_FLAGS_MOREFRAG = 0x1;
@@ -302,6 +321,21 @@ public class IPv4 extends BasePacket {
      *      -headerLength : 0
      *      -totalLength : 0
      */
+  //0                   1                   2                   3
+  //0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  //|Version|  IHL  |Type of Service|          Total Length         |
+  //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  //|         Identification        |Flags|      Fragment Offset    |
+  //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  //|  Time to Live |    Protocol   |         Header Checksum       |
+  //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  //|                       Source Address                          |
+  //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  //|                    Destination Address                        |
+  //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  //|                    Options                    |    Padding    |
+  //+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     @Override
     public byte[] serialize() {
         byte[] payloadData = null;

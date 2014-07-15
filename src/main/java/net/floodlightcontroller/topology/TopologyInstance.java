@@ -22,10 +22,12 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Set;
 
-
+import org.openflow.util.HexString;
+import org.python.antlr.ast.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,6 +82,46 @@ public class TopologyInstance {
     protected Map<Long, BroadcastTree> destinationRootedTrees;
     protected Map<Long, Set<NodePortTuple>> clusterBroadcastNodePorts;
     protected Map<Long, BroadcastTree> clusterBroadcastTrees;
+//    protected Map<SwitchPair, Integer> distance;
+    protected Map<Long, Map<Long, Integer>> metricSpaceDist;
+    
+//    protected class SwitchPair {
+//    	Long switch1;
+//    	Long switch2;
+//    	
+//    	SwitchPair(Long switch1, Long switch2){
+//    		this.switch1 = switch1;
+//    		this.switch2 = switch2;
+//    	}
+//    	
+//    	public String toString() {
+//            return "[switch1_id=" + switch1.toString() + ", switch2_id=" + switch2.toString() + "]";
+//        }
+//
+//        @Override
+//        public int hashCode() {
+//            final int prime = 31;
+//            int result = 1;
+//            result = prime * result + (int) (switch1 ^ (switch1 >>> 32));
+//            result = (int) (prime * result + switch2);
+//            return result;
+//        }
+//
+//        @Override
+//        public boolean equals(Object obj) {
+//            if (obj == null)
+//                return false;
+//            if (getClass() != obj.getClass())
+//                return false;
+//            SwitchPair other = (SwitchPair) obj;
+//            if (switch1 == other.switch1 && switch2 == other.switch2)
+//                return true;
+//            if (switch1 == other.switch2 && switch2 == other.switch1)
+//                return true;
+//            return false;
+//        }
+//        
+//    }
 
     protected class PathCacheLoader extends CacheLoader<RouteId, Route> {
         TopologyInstance ti;
@@ -123,6 +165,7 @@ public class TopologyInstance {
 
         clusters = new HashSet<Cluster>();
         switchClusterMap = new HashMap<Long, Cluster>();
+        metricSpaceDist = new HashMap<Long, Map<Long, Integer>>();
     }
     public TopologyInstance(Map<Long, Set<Short>> switchPorts,
                             Set<NodePortTuple> blockedPorts,
@@ -152,6 +195,7 @@ public class TopologyInstance {
         destinationRootedTrees = new HashMap<Long, BroadcastTree>();
         clusterBroadcastTrees = new HashMap<Long, BroadcastTree>();
         clusterBroadcastNodePorts = new HashMap<Long, Set<NodePortTuple>>();
+        metricSpaceDist = new HashMap<Long, Map<Long, Integer>>();
 
         pathcache = CacheBuilder.newBuilder().concurrencyLevel(4)
                     .maximumSize(1000L)
@@ -557,8 +601,24 @@ public class TopologyInstance {
             for (Long node : c.links.keySet()) {
                 BroadcastTree tree = dijkstra(c, node, linkCost, true);
                 destinationRootedTrees.put(node, tree);
+                HashMap<Long, Integer> metric = new HashMap<Long, Integer>();
+                for(Long switchid: tree.getLinks().keySet()){
+                	if(switchid == node) continue;
+                	metric.put(switchid, getDist(switchid, metric, tree));
+                }
+                metricSpaceDist.put(node, metric);
             }
         }
+    }
+    private Integer getDist(Long switchid, HashMap<Long, Integer> metric, BroadcastTree tree){
+    	if(metric.containsKey(switchid) == true){
+    		return metric.get(switchid);
+    	}else{
+    		Link link = tree.getTreeLink(switchid);
+        	Long neighbour =  link.getDst();
+        	int cost = tree.getCost(switchid);
+        	return cost + metric.get(neighbour);
+    	}
     }
 
     protected void calculateBroadcastTreeInClusters() {
