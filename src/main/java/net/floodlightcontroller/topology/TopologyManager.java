@@ -60,6 +60,7 @@ import net.floodlightcontroller.debugevent.IDebugEventService.EventType;
 import net.floodlightcontroller.debugevent.IDebugEventService.MaxEventsRegistered;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscoveryListener;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscoveryService;
+import net.floodlightcontroller.multicast.IMulticastService;
 import net.floodlightcontroller.packet.BSN;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.LLDP;
@@ -89,6 +90,7 @@ import org.slf4j.LoggerFactory;
 public class TopologyManager implements
         IFloodlightModule, ITopologyService,
         IRoutingService, ILinkDiscoveryListener,
+        IMulticastService,
         IOFMessageListener {
 
     protected static Logger log = LoggerFactory.getLogger(TopologyManager.class);
@@ -142,6 +144,9 @@ public class TopologyManager implements
     // These must be accessed using getCurrentInstance(), not directly
     protected TopologyInstance currentInstance;
     protected TopologyInstance currentInstanceWithoutTunnels;
+    
+    //ST instance
+    protected TopologyInstanceForST stInstance;
 
     protected SingletonTask newInstanceTask;
     private Date lastUpdateTime;
@@ -721,6 +726,35 @@ public class TopologyManager implements
         result.add(getRoute(srcDpid, dstDpid, 0, tunnelEnabled));
         return result;
     }
+    
+    // ******************
+    // IMulticastService
+    // ******************
+    public void updateST(Long switchID, int request){
+    	stInstance.updateST(switchID, request);
+	}
+	
+	public ArrayList<Link> getAddLinks() {
+		// TODO Auto-generated method stub
+		return stInstance.getAddLinks();
+	}
+
+	public ArrayList<Link> getRemoveLinks() {
+		// TODO Auto-generated method stub
+		return stInstance.getRemoveLinks();
+	}
+	
+	public HashMap<Long, HashSet<Link>> getLinkMap(){
+		return stInstance.getLinkMap();
+	}
+	
+	public Set<Long> getTerminals(){
+		return stInstance.getTerminals();
+	}
+	
+	public void printSTTopo(){
+		stInstance.printSTTpo();
+	}
 
     // ******************
     // IOFMessageListener
@@ -808,6 +842,7 @@ public class TopologyManager implements
                 new ArrayList<Class<? extends IFloodlightService>>();
         l.add(ITopologyService.class);
         l.add(IRoutingService.class);
+        l.add(IMulticastService.class);
         return l;
     }
 
@@ -821,6 +856,7 @@ public class TopologyManager implements
         // We are the class that implements the service
         m.put(ITopologyService.class, this);
         m.put(IRoutingService.class, this);
+        m.put(IMulticastService.class, this);
         return m;
     }
 
@@ -1245,6 +1281,8 @@ public class TopologyManager implements
         // If needed, we may compute them differently.
         currentInstance = nt;
         currentInstanceWithoutTunnels = nt;
+        
+        stInstance = new TopologyInstanceForST(nt);
 
         TopologyEventInfo topologyInfo =
                 new TopologyEventInfo(0, nt.getClusters().size(),

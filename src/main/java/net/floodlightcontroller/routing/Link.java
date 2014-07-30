@@ -18,6 +18,7 @@
 package net.floodlightcontroller.routing;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import org.openflow.util.HexString;
 
 public class Link implements Comparable<Link> {
@@ -30,6 +31,21 @@ public class Link implements Comparable<Link> {
     @JsonProperty("dst-port")
     private short dstPort;
 
+    public Long getOtherEnd(Long v){
+		return v == src? dst: src;
+	}
+    
+    public Short getOtherPort(Long v) {
+		// TODO Auto-generated method stub
+		return v == src? dstPort: srcPort;
+	}
+    public boolean isSrc(Long v){
+    	return v==src;
+    }
+    
+    public Link getSymLink(){
+    	return new Link(dst, dstPort, src, srcPort);
+    }
 
     public Link(long srcId, short srcPort, long dstId, short dstPort) {
         this.src = srcId;
@@ -150,5 +166,7 @@ public class Link implements Comparable<Link> {
         
         return this.getDstPort() - a.getDstPort();
     }
+
+	
 }
 

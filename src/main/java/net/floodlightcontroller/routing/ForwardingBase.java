@@ -228,8 +228,8 @@ public abstract class ForwardingBase
             .setBufferId(OFPacketOut.BUFFER_ID_NONE)
             .setCookie(cookie)
             .setCommand(flowModCommand)
-            .setMatch(match)
             .setActions(actions)
+            .setMatch(match)
             .setLengthU(OFFlowMod.MINIMUM_LENGTH+OFActionOutput.MINIMUM_LENGTH);
 
         List<NodePortTuple> switchPortList = route.getPath();

@@ -82,8 +82,7 @@ public class TopologyInstance {
     protected Map<Long, BroadcastTree> destinationRootedTrees;
     protected Map<Long, Set<NodePortTuple>> clusterBroadcastNodePorts;
     protected Map<Long, BroadcastTree> clusterBroadcastTrees;
-//    protected Map<SwitchPair, Integer> distance;
-    protected Map<Long, Map<Long, Integer>> metricSpaceDist;
+
     
 //    protected class SwitchPair {
 //    	Long switch1;
@@ -165,7 +164,7 @@ public class TopologyInstance {
 
         clusters = new HashSet<Cluster>();
         switchClusterMap = new HashMap<Long, Cluster>();
-        metricSpaceDist = new HashMap<Long, Map<Long, Integer>>();
+//        metricSpaceDist = new HashMap<Long, Map<Long, Integer>>();
     }
     public TopologyInstance(Map<Long, Set<Short>> switchPorts,
                             Set<NodePortTuple> blockedPorts,
@@ -195,7 +194,7 @@ public class TopologyInstance {
         destinationRootedTrees = new HashMap<Long, BroadcastTree>();
         clusterBroadcastTrees = new HashMap<Long, BroadcastTree>();
         clusterBroadcastNodePorts = new HashMap<Long, Set<NodePortTuple>>();
-        metricSpaceDist = new HashMap<Long, Map<Long, Integer>>();
+//        metricSpaceDist = new HashMap<Long, Map<Long, Integer>>();
 
         pathcache = CacheBuilder.newBuilder().concurrencyLevel(4)
                     .maximumSize(1000L)
@@ -601,25 +600,16 @@ public class TopologyInstance {
             for (Long node : c.links.keySet()) {
                 BroadcastTree tree = dijkstra(c, node, linkCost, true);
                 destinationRootedTrees.put(node, tree);
-                HashMap<Long, Integer> metric = new HashMap<Long, Integer>();
-                for(Long switchid: tree.getLinks().keySet()){
-                	if(switchid == node) continue;
-                	metric.put(switchid, getDist(switchid, metric, tree));
-                }
-                metricSpaceDist.put(node, metric);
+//                HashMap<Long, Integer> metric = new HashMap<Long, Integer>();
+//                for(Long switchid: tree.getLinks().keySet()){
+//                	if(switchid == node) continue;
+//                	metric.put(switchid, getDist(switchid, node, metric, tree));
+//                }
+//                metricSpaceDist.put(node, metric);
             }
         }
     }
-    private Integer getDist(Long switchid, HashMap<Long, Integer> metric, BroadcastTree tree){
-    	if(metric.containsKey(switchid) == true){
-    		return metric.get(switchid);
-    	}else{
-    		Link link = tree.getTreeLink(switchid);
-        	Long neighbour =  link.getDst();
-        	int cost = tree.getCost(switchid);
-        	return cost + metric.get(neighbour);
-    	}
-    }
+   
 
     protected void calculateBroadcastTreeInClusters() {
         for(Cluster c: clusters) {

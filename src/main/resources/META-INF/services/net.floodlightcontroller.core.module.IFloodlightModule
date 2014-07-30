@@ -4,7 +4,6 @@ net.floodlightcontroller.storage.memory.MemoryStorageSource
 net.floodlightcontroller.devicemanager.internal.DeviceManagerImpl
 net.floodlightcontroller.linkdiscovery.internal.LinkDiscoveryManager
 net.floodlightcontroller.topology.TopologyManager
-net.floodlightcontroller.forwarding.Forwarding
 net.floodlightcontroller.flowcache.FlowReconcileManager
 net.floodlightcontroller.core.OFMessageFilterManager
 net.floodlightcontroller.staticflowentry.StaticFlowEntryPusher
@@ -12,7 +11,6 @@ net.floodlightcontroller.perfmon.PktInProcessingTime
 net.floodlightcontroller.perfmon.NullPktInProcessingTime
 net.floodlightcontroller.restserver.RestApiServer
 net.floodlightcontroller.learningswitch.LearningSwitch
-net.floodlightcontroller.hub.Hub
 net.floodlightcontroller.jython.JythonDebugInterface
 net.floodlightcontroller.counter.CounterStore
 net.floodlightcontroller.counter.NullCounterStore
@@ -25,6 +23,5 @@ net.floodlightcontroller.firewall.Firewall
 net.floodlightcontroller.loadbalancer.LoadBalancer
 org.sdnplatform.sync.internal.SyncManager
 org.sdnplatform.sync.internal.SyncTorture
-net.floodlightcontroller.devicemanager.internal.DefaultEntityClassifier
 net.floodlightcontroller.multicast.IGMPCapture
-
+net.floodlightcontroller.devicemanager.internal.DefaultEntityClassifier
