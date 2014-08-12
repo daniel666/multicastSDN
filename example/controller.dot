@@ -1,0 +1,36 @@
+digraph Deps {
+     n0 [ label="dpid=00:00:00:00:00:00:00:0c", color="blue"];
+     n1 [ label="dpid=00:00:00:00:00:00:00:0a", color="blue"];
+     n0 -> n1 [ label="src_port 5 --> dst_port 2"];
+     n2 [ label="dpid=00:00:00:00:00:00:00:04", color="blue"];
+     n3 [ label="dpid=00:00:00:00:00:00:00:01", color="blue"];
+     n2 -> n3 [ label="src_port 4 --> dst_port 2"];
+     n4 [ label="dpid=00:00:00:00:00:00:00:08", color="blue"];
+     n1 -> n4 [ label="src_port 7 --> dst_port 2"];
+     n5 [ label="dpid=00:00:00:00:00:00:00:02", color="blue"];
+     n5 -> n3 [ label="src_port 2 --> dst_port 2"];
+     n6 [ label="dpid=00:00:00:00:00:00:00:07", color="blue"];
+     n7 [ label="dpid=00:00:00:00:00:00:00:06", color="blue"];
+     n6 -> n7 [ label="src_port 5 --> dst_port 3"];
+     n8 [ label="dpid=00:00:00:00:00:00:00:0b", color="blue"];
+     n8 -> n1 [ label="src_port 4 --> dst_port 3"];
+     n9 [ label="dpid=00:00:00:00:00:00:00:03", color="blue"];
+     n9 -> n3 [ label="src_port 3 --> dst_port 2"];
+     n4 -> n6 [ label="src_port 4 --> dst_port 5"];
+     n2 -> n9 [ label="src_port 6 --> dst_port 3"];
+     n6 -> n9 [ label="src_port 5 --> dst_port 2"];
+     n9 -> n5 [ label="src_port 4 --> dst_port 3"];
+     n0 -> n8 [ label="src_port 4 --> dst_port 3"];
+     n7 -> n9 [ label="src_port 4 --> dst_port 2"];
+     n10 [ label="dpid=00:00:00:00:00:00:00:09", color="blue"];
+     n10 -> n4 [ label="src_port 6 --> dst_port 3"];
+     n8 -> n4 [ label="src_port 8 --> dst_port 2"];
+     n11 [ label="dpid=00:00:00:00:00:00:00:05", color="blue"];
+     n10 -> n11 [ label="src_port 3 --> dst_port 2"];
+     n4 -> n2 [ label="src_port 4 --> dst_port 2"];
+     n7 -> n11 [ label="src_port 4 --> dst_port 3"];
+     n4 -> n11 [ label="src_port 5 --> dst_port 3"];
+     n1 -> n10 [ label="src_port 4 --> dst_port 3"];
+     n11 -> n5 [ label="src_port 3 --> dst_port 2"];
+     n4 -> n7 [ label="src_port 4 --> dst_port 4"];
+}

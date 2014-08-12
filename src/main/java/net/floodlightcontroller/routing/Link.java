@@ -134,15 +134,19 @@ public class Link implements Comparable<Link> {
     }
 
 
+//    @Override
+//    public String toString() {
+//        return "Link [src=" + HexString.toHexString(this.src) 
+//                + " outPort="
+//                + (srcPort & 0xffff)
+//                + ", dst=" + HexString.toHexString(this.dst)
+//                + ", inPort="
+//                + (dstPort & 0xffff)
+//                + "]";
+//    }
     @Override
-    public String toString() {
-        return "Link [src=" + HexString.toHexString(this.src) 
-                + " outPort="
-                + (srcPort & 0xffff)
-                + ", dst=" + HexString.toHexString(this.dst)
-                + ", inPort="
-                + (dstPort & 0xffff)
-                + "]";
+    public String toString(){
+    	return src+":" + srcPort + "--" + dst + ":" + dstPort;
     }
     
     public String toKeyString() {

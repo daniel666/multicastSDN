@@ -4,6 +4,7 @@
       <pattern>%date{yyyy-MM-dd HH:mm:ss.S} %-5level [%logger{15}] %msg%n</pattern>
     </encoder>
   </appender>
+  
   <root level="INFO">
     <appender-ref ref="STDOUT" />
   </root>

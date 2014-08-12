@@ -83,6 +83,7 @@ import net.floodlightcontroller.notification.INotificationManager;
 import net.floodlightcontroller.notification.NotificationManagerFactory;
 import net.floodlightcontroller.packet.BSN;
 import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.packet.LLDP;
 import net.floodlightcontroller.packet.LLDPTLV;
 import net.floodlightcontroller.restserver.IRestApiService;
@@ -191,7 +192,8 @@ public class LinkDiscoveryManager implements IOFMessageListener,
     // Link discovery task details.
     protected SingletonTask discoveryTask;
     protected final int DISCOVERY_TASK_INTERVAL = 1;
-    protected final int LINK_TIMEOUT = 35; // timeout as part of LLDP process.
+//    protected final int LINK_TIMEOUT = 35; // timeout as part of LLDP process.
+    protected final int LINK_TIMEOUT = 6000; // timeout as part of LLDP process.
     protected final int LLDP_TO_ALL_INTERVAL = 15; // 15 seconds.
     protected long lldpClock = 0;
     // This value is intentionally kept higher than LLDP_TO_ALL_INTERVAL.
@@ -1009,6 +1011,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
         else
             operation = UpdateOperation.PORT_DOWN;
 
+        log.info("generateSwitchPortStatusUpdate");
         updates.add(new LDUpdate(sw, port, operation));
     }
 
@@ -1346,7 +1349,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
                     updateOperation = UpdateOperation.LINK_UPDATED;
                     LinkType linkType = getLinkType(lt, newInfo);
                     if (linkType == ILinkDiscovery.LinkType.DIRECT_LINK) {
-                        log.info("Inter-switch link updated: {}", lt);
+//                        log.info("Inter-switch link updated: {}", lt);
                         evDirectLink.updateEventNoFlush(new DirectLinkEvent(lt.getSrc(),
                             lt.getSrcPort(), lt.getDst(), lt.getDstPort(),
                             "link-port-state-updated::rcvd LLDP"));
@@ -1361,6 +1364,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
             writeLinkToStorage(lt, newInfo);
 
             if (linkChanged) {
+            	log.info("addOrUpdateLink");
                 // find out if the link was added or removed here.
                 updates.add(new LDUpdate(lt.getSrc(), lt.getSrcPort(),
                                          lt.getDst(), lt.getDstPort(),
@@ -1462,7 +1466,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
                 // the switchports must be added to quarantine.
 
                 if (linkType == ILinkDiscovery.LinkType.DIRECT_LINK) {
-                    log.info("Inter-switch link removed: {}", lt);
+//                    log.info("Inter-switch link removed: {}", lt);
                     notifier.postNotification("Inter-switch link removed: " +
                                               lt.toString());
                 } else if (log.isTraceEnabled()) {
@@ -1471,6 +1475,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
             }
         } finally {
             if (updateList != null) linkUpdateList.addAll(updateList);
+            log.info("addOrUpdateLink");
             updates.addAll(linkUpdateList);
             lock.writeLock().unlock();
         }
@@ -1524,6 +1529,13 @@ public class LinkDiscoveryManager implements IOFMessageListener,
                         + (this.LINK_TIMEOUT * 1000) < curTime)) {
                     info.setUnicastValidTime(null);
                     linkChanged = true;
+                    log.error("Link {} timeout, receivedtime = {}, nowtime = {}", 
+                    		new Object[] {
+	                    		lt, 
+	                    		info.getUnicastValidTime().toString(), 
+	                    		curTime.toString()
+                    		});
+                   
                 }
                 if ((info.getMulticastValidTime() != null)
                     && (info.getMulticastValidTime()
@@ -1537,6 +1549,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
                     && info.getMulticastValidTime() == null) {
                     eraseList.add(entry.getKey());
                 } else if (linkChanged) {
+                	log.info("timeoutlinks {}", lt);
                     updates.add(new LDUpdate(lt.getSrc(), lt.getSrcPort(),
                                              lt.getDst(), lt.getDstPort(),
                                              getLinkType(lt, info),
@@ -1610,6 +1623,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
             deleteLinksOnPort(npt, "Port Status Changed");
             LDUpdate update = new LDUpdate(switchId, portNumber,
                     UpdateOperation.PORT_DOWN);
+            log.info("handleportdown");
             updates.add(update);
     }
     /**
@@ -1669,6 +1683,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
                 deleteLinks(eraseList, "Switch Removed", updateList);
             } else {
                 // Switch does not have any links.
+            	log.info("switchremoved");
                 updates.add(new LDUpdate(sw, null,
                                          UpdateOperation.SWITCH_REMOVED));
             }
@@ -1688,6 +1703,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
         }
         LDUpdate update = new LDUpdate(sw.getId(), null,
                                        UpdateOperation.SWITCH_UPDATED);
+        log.info("switchactivated");
         updates.add(update);
     }
 
@@ -1769,6 +1785,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
                     log.trace("SWITCH_IS_CORE_SWITCH set to False for {}",
                               sw);
                 }
+                log.info("rowsmodified");
                 updates.add(new LDUpdate(sw.getId(),
                                          SwitchType.BASIC_SWITCH,
                                          UpdateOperation.SWITCH_UPDATED));
@@ -1778,6 +1795,7 @@ public class LinkDiscoveryManager implements IOFMessageListener,
                 if (log.isTraceEnabled()) {
                     log.trace("SWITCH_IS_CORE_SWITCH set to True for {}", sw);
                 }
+                log.info("rowsmodified non core");
                 updates.add(new LDUpdate(sw.getId(), SwitchType.CORE_SWITCH,
                                          UpdateOperation.SWITCH_UPDATED));
             }

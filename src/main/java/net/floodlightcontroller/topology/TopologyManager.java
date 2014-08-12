@@ -16,7 +16,10 @@
 
 package net.floodlightcontroller.topology;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -52,12 +55,12 @@ import net.floodlightcontroller.debugcounter.IDebugCounterService.CounterExcepti
 import net.floodlightcontroller.debugcounter.IDebugCounterService.CounterType;
 import net.floodlightcontroller.debugcounter.NullDebugCounter;
 import net.floodlightcontroller.debugevent.IDebugEventService;
-import net.floodlightcontroller.debugevent.IEventUpdater;
-import net.floodlightcontroller.debugevent.NullDebugEvent;
 import net.floodlightcontroller.debugevent.IDebugEventService.EventColumn;
 import net.floodlightcontroller.debugevent.IDebugEventService.EventFieldType;
 import net.floodlightcontroller.debugevent.IDebugEventService.EventType;
 import net.floodlightcontroller.debugevent.IDebugEventService.MaxEventsRegistered;
+import net.floodlightcontroller.debugevent.IEventUpdater;
+import net.floodlightcontroller.debugevent.NullDebugEvent;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscoveryListener;
 import net.floodlightcontroller.linkdiscovery.ILinkDiscoveryService;
 import net.floodlightcontroller.multicast.IMulticastService;
@@ -78,6 +81,7 @@ import org.openflow.protocol.OFPort;
 import org.openflow.protocol.OFType;
 import org.openflow.protocol.action.OFAction;
 import org.openflow.protocol.action.OFActionOutput;
+import org.python.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -147,6 +151,21 @@ public class TopologyManager implements
     
     //ST instance
     protected TopologyInstanceForST stInstance;
+    protected SharedTreeInstance sharedTreeInstance; //for comparison test
+    protected KMBInstance kmbInstance;
+    
+    //instrumentation recorder
+//    protected List<Integer> stMetricCost = new ArrayList<Integer>();
+    protected List<Integer> stPCost = new ArrayList<Integer>();
+    protected List<Integer> stSwapNum = new ArrayList<Integer>();
+    
+    protected List<Integer> sharedtreePCost = new ArrayList<Integer>();
+    protected List<Integer> sharedtreePLinkchange = new ArrayList<Integer>();
+
+    protected List<Integer> KMBPCost = new ArrayList<Integer>();
+    protected List<Integer> KMBPLinkchange = new ArrayList<Integer>();
+
+
 
     protected SingletonTask newInstanceTask;
     private Date lastUpdateTime;
@@ -285,7 +304,9 @@ public class TopologyManager implements
         @Override
         public void run() {
             try {
+//                log.info("IN UPDATE TOPOLOGY WORKER");
                 if (ldUpdates.peek() != null)
+//                    log.info("ldUpdate not empty");
                     updateTopology();
                 handleMiscellaneousPeriodicEvents();
             }
@@ -324,6 +345,7 @@ public class TopologyManager implements
         if (log.isTraceEnabled()) {
             log.trace("Queuing update: {}", updateList);
         }
+//        log.info("linkDiscoveryUpdate updatelist");
         ldUpdates.addAll(updateList);
     }
 
@@ -332,6 +354,7 @@ public class TopologyManager implements
         if (log.isTraceEnabled()) {
             log.trace("Queuing update: {}", update);
         }
+//        log.info("linkDiscoveryUpdate update");
         ldUpdates.add(update);
     }
 
@@ -732,6 +755,11 @@ public class TopologyManager implements
     // ******************
     public void updateST(Long switchID, int request){
     	stInstance.updateST(switchID, request);
+    	
+    	//for comparison test
+    	sharedTreeInstance.update(switchID, request);
+    	Set<Long> terminals = stInstance.steinerTree.terminals;
+    	kmbInstance.calculate((HashSet<Long>) terminals);
 	}
 	
 	public ArrayList<Link> getAddLinks() {
@@ -754,6 +782,63 @@ public class TopologyManager implements
 	
 	public void printSTTopo(){
 		stInstance.printSTTpo();
+		
+		//for comparison test
+    	sharedTreeInstance.print();
+    	kmbInstance.print();
+    	
+    	
+    	double ratio = Double.NaN ;
+    	if(sharedTreeInstance.cost != 0)
+    		ratio = stInstance.steinerTree.treeCost * 1.0 / sharedTreeInstance.cost;
+    	log.info("	++++Metric cost ratio to SPT= {}", ratio);
+    	double  ratio2 = Double.NaN;
+    	if(sharedTreeInstance.pCost !=0 )
+    		ratio2 = stInstance.steinerTree.pCost * 1.0 / sharedTreeInstance.pCost;
+    	log.info("	++++Physical Cost ratio to SPT= {}", ratio2);
+    	
+    	double ratioToKMB = Double.NaN;
+    	if(kmbInstance.pCost !=0)
+    		ratioToKMB = stInstance.steinerTree.pCost * 1.0 / kmbInstance.pCost;
+    	log.info("	++++Physical Cost ratio to KMB = {}", ratioToKMB);
+    	log.info("	+++++++++++++++++END++++++++++++++++++++++");
+    	
+    	/*
+    	 * save stat to file
+    	 */
+//    	stMetricCost.add(stInstance.steinerTree.treeCost);
+    	stPCost.add(stInstance.steinerTree.pCost);
+    	Set<Link> stchangelinks = Sets.symmetricDifference(stInstance.oldsteinerTree.pLinks, stInstance.steinerTree.pLinks).
+				immutableCopy();
+    	int linkchange = stchangelinks.size()/2;
+    	log.info("_____steiner tree changed links:{}",stchangelinks);
+        stSwapNum.add(linkchange);
+        
+        sharedtreePCost.add(sharedTreeInstance.pCost);
+        sharedtreePLinkchange.add(sharedTreeInstance.linkdff);
+
+        KMBPCost.add(kmbInstance.pCost);
+        KMBPLinkchange.add(kmbInstance.diffpLinks);
+    	PrintWriter writer = null;
+		try {
+			writer = new PrintWriter("/home/xushunyi/log.data");
+//			writer.println(stMetricCost.toString());
+			writer.println(stPCost.toString());
+	    	writer.println(stSwapNum.toString());
+	    	
+//			writer.println(sharedtreeMetricCost.toString());
+			writer.println(sharedtreePCost.toString());
+			writer.println(sharedtreePLinkchange.toString());
+			
+			writer.println(KMBPCost.toString());
+			writer.println(KMBPLinkchange.toString());
+			
+	    	writer.close();
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
+    	
 	}
 
     // ******************
@@ -1172,21 +1257,24 @@ public class TopologyManager implements
             if (log.isTraceEnabled()) {
                 log.trace("Applying update: {}", update);
             }
-
             switch (update.getOperation()) {
             case LINK_UPDATED:
+                log.info("Link UPdated");
                 addOrUpdateLink(update.getSrc(), update.getSrcPort(),
                         update.getDst(), update.getDstPort(),
                         update.getType());
                 break;
             case LINK_REMOVED:
+                log.info("link removed");
                 removeLink(update.getSrc(), update.getSrcPort(),
                         update.getDst(), update.getDstPort());
                 break;
             case SWITCH_UPDATED:
+                log.info("switch updates");
                 addOrUpdateSwitch(update.getSrc());
                 break;
             case SWITCH_REMOVED:
+                log.info("switch removed");
                 removeSwitch(update.getSrc());
                 break;
             case TUNNEL_PORT_ADDED:
@@ -1282,7 +1370,11 @@ public class TopologyManager implements
         currentInstance = nt;
         currentInstanceWithoutTunnels = nt;
         
+        //SteinerTree Instance
         stInstance = new TopologyInstanceForST(nt);
+        sharedTreeInstance = new SharedTreeInstance();
+    	kmbInstance = new KMBInstance();
+        System.out.println("update topology because:"+reason);
 
         TopologyEventInfo topologyInfo =
                 new TopologyEventInfo(0, nt.getClusters().size(),

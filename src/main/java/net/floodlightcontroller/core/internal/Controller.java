@@ -1040,6 +1040,7 @@ public class Controller implements IFloodlightProviderService,
                 oldSw.cancelAllStatisticsReplies();
                 addUpdateToQueue(new SwitchUpdate(dpid,
                                                   SwitchUpdateType.REMOVED));
+                log.error("new switch: {} and old switch not null:{} ", sw, oldSw);
                 oldSw.disconnectOutputStream();
                 // Add the new switch and clear FlowMods
                 // TODO: if this is the same switch re-connecting rather than
@@ -2181,6 +2182,8 @@ public class Controller implements IFloodlightProviderService,
         while (true) {
             try {
                 IUpdate update = updates.take();
+                //for my own debugging purpose
+                log.info("!!! retriving update:{}", update);
                 update.dispatch();
             } catch (InterruptedException e) {
                 log.error("Received interrupted exception in updates loop;" +
@@ -2625,6 +2628,9 @@ public class Controller implements IFloodlightProviderService,
             recommendation=LogMessageDoc.REPORT_CONTROLLER_BUG)
     private void addUpdateToQueue(IUpdate update) {
         try {
+        	//for my own debugging purpose
+        	log.info("!!! am gonna put an update:{}", update);
+        	
             this.updates.put(update);
         } catch (InterruptedException e) {
             // This should never happen

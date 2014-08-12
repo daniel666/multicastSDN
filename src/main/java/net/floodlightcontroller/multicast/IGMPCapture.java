@@ -44,6 +44,7 @@ import org.openflow.protocol.action.OFActionOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 public class IGMPCapture implements IOFMessageListener, IFloodlightModule{
     protected static Logger log = LoggerFactory.getLogger(IGMPCapture.class);
 	protected static byte IGMP_PROTOCOL_TYPE = 2;
@@ -187,18 +188,24 @@ public class IGMPCapture implements IOFMessageListener, IFloodlightModule{
         			{
         				break;
         			}
-        			log.info("Capture IGMP Join Message: src:{}, mul:{}",  
-        					new Object[]{	
-        							IPv4.fromIPv4Address(sourceAddr), 
-        							IPv4.fromIPv4Address(multicastAddr)
-        					}
-        			);
-        			
+//        			log.info(">>>Capture IGMP Join Message: src:{}, mul:{}",  
+//        					new Object[]{	
+//        							IPv4.fromIPv4Address(sourceAddr), 
+//        							IPv4.fromIPv4Address(multicastAddr)
+//        					}
+//        			);
+//        			try {
+//						Thread.sleep(100);
+//					} catch (InterruptedException e) {
+//						// TODO Auto-generated catch block
+//						e.printStackTrace();
+//					}
         			stEngine.updateST(sw.getId(),
         							TopologyInstanceForST.ADD);
         			//for debug
-//        			stEngine.printSTTopo();
-
+        			stEngine.printSTTopo();
+        		
+//
 //        			addLinks = stEngine.getAddLinks();
 //        			removeLinks = stEngine.getRemoveLinks();
 //        			if(addLinks == null || removeLinks == null){
@@ -207,7 +214,7 @@ public class IGMPCapture implements IOFMessageListener, IFloodlightModule{
 //        			switchAddLinks = convertToMap(addLinks);
 //        			switchRemoveLinks = convertToMap(removeLinks);
 //        			pushFlowMod(sw.getId(), pi, match, switchAddLinks, switchRemoveLinks, cntx);
-        			
+//        			
         			
 //        			pushPacket(sw, pi, switchLinks.get(sw.getId()), cntx );
         			break;
@@ -216,16 +223,16 @@ public class IGMPCapture implements IOFMessageListener, IFloodlightModule{
         			{
         				break; 
         			}
-        			log.info("Capture IGMP Leave Message: src:{}, mul:{}", 
-        					new Object[]{	
-								IPv4.fromIPv4Address(sourceAddr), 
-								IPv4.fromIPv4Address(multicastAddr)
-							}
-        			);
-//        			stEngine.updateST(sw.getId(),
-//							TopologyInstanceForST.REMOVE);
-//        			//for debug
-//        			stEngine.printSTTopo();
+//        			log.info("Capture IGMP Leave Message: src:{}, mul:{}", 
+//        					new Object[]{	
+//								IPv4.fromIPv4Address(sourceAddr), 
+//								IPv4.fromIPv4Address(multicastAddr)
+//							}
+//        			);
+        			stEngine.updateST(sw.getId(),
+							TopologyInstanceForST.REMOVE);
+        			//for debug
+        			stEngine.printSTTopo();
 //
 //        			addLinks = stEngine.getAddLinks();
 //        			removeLinks = stEngine.getRemoveLinks();
@@ -250,7 +257,6 @@ public class IGMPCapture implements IOFMessageListener, IFloodlightModule{
         		}
         	}
         }
-        
         return Command.CONTINUE;
 	}
 

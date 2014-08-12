@@ -5,30 +5,25 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import net.floodlightcontroller.routing.BroadcastTree;
+import net.floodlightcontroller.routing.Link;
 
 import org.python.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.Sets;
-
-import net.floodlightcontroller.multicast.IGMPCapture;
-import net.floodlightcontroller.routing.BroadcastTree;
-import net.floodlightcontroller.routing.Link;
 
 
 public class TopologyInstanceForST{
 //	protected Map<Integer, SteinerTree> sterinTrees;
     protected static Logger log = LoggerFactory.getLogger(TopologyInstanceForST.class);
 
-    protected TopologyInstance currentInstance;
-	protected Map<Long, BroadcastTree> destinationRootedTrees ;
+	protected static Map<Long, BroadcastTree> destinationRootedTrees ;
 	protected Map<Long, Map<Long, Integer>> metricSpaceDist;
 
-	Map<Link, Integer> linkCost = new HashMap<Link, Integer>(); //cost functions for physical topology link
+	static Map<Link, Integer> linkCost = new HashMap<Link, Integer>(); //cost functions for physical topology link
 	protected SteinerTree steinerTree;
 	protected SteinerTree oldsteinerTree;
 //  protected Map<SwitchPair, Integer> distance;
@@ -58,7 +53,7 @@ public class TopologyInstanceForST{
 	public TopologyInstanceForST(TopologyInstance nt){
 		destinationRootedTrees = nt.destinationRootedTrees;
 		Set<Cluster>  clusters = nt.clusters;
-		Map<Long, Set<Short>> switchPorts = nt.switchPorts; //ports facing switches not hosts
+//		Map<Long, Set<Short>> switchPorts = nt.switchPorts; //ports facing switches not hosts
 		Map<NodePortTuple, Set<Link>> switchPortLinks = nt.switchPortLinks;
 //		Set<NodePortTuple> tunnelPorts = nt.tunnelPorts; //null 
 		//metric cost. Shortest Path cost between any pair of node
@@ -69,15 +64,17 @@ public class TopologyInstanceForST{
         		HashMap<Long, Integer> metric = new HashMap<Long, Integer>();
                 for(Long switchid: tree.getLinks().keySet()){
                 	if(switchid == node) continue;
-                	metric.put(switchid, getDist(switchid, node, metric, tree));
+                	metric.put(switchid, tree.getCost(switchid));
                 }
                 metricSpaceDist.put(node, metric);
             }
 		}
 		//other attributes of a ST instance
 		steinerTree = new SteinerTree();
-		oldsteinerTree = null;
-		int tunnel_weight = switchPorts.size() + 1;
+		oldsteinerTree = new SteinerTree();
+//		int tunnel_weight = switchPorts.size() + 1;
+		int tunnel_weight = 1;
+		log.info("tunnel_wight:{}", tunnel_weight);
 		treeOptCost = new ArrayList<Integer>();  
 	    for(NodePortTuple npt: switchPortLinks.keySet()) {
 	        if (switchPortLinks.get(npt) == null) continue;
@@ -86,16 +83,7 @@ public class TopologyInstanceForST{
 	            linkCost.put(link, tunnel_weight);
 	        }
 	    }
-//	    lt = new ArrayList<Integer>();
 	}
-	
-//	TopologyInstanceForSteinerTree(Map<Link, Integer> linkCost){
-//		this.steinerTree = new SteinerTree();
-//		treeOptCost = new ArrayList<Integer>();
-//		this.linkCost = linkCost;
-//	    lt = new ArrayList<Integer>();
-//	}
-	
 	public HashMap<Long, HashSet<Link>> getLinkMap(){
 		return steinerTree.getLinkMap();
 	}
@@ -103,12 +91,20 @@ public class TopologyInstanceForST{
 	public void updateST(Long switchID, int request){
 		switch(request){
 		case ADD:
-			oldsteinerTree = steinerTree;
+			log.info(">>>Round {}: Capture IGMP Add request from {}", round, switchID);
+			oldsteinerTree = new SteinerTree(steinerTree);
+			steinerTree.preInstrumentation();
 			steinerTree.add(switchID);
+			
+			steinerTree.getPhyInstrument();
 			break;
 		case REMOVE:
-			oldsteinerTree = steinerTree;
+			log.info(">>>Round {}: Capture IGMP Remove request from {}", round, switchID);
+			oldsteinerTree = new SteinerTree(steinerTree);
+			steinerTree.preInstrumentation();
 			steinerTree.remove(switchID);
+			steinerTree.getPhyInstrument();
+
 			break;
 		}
 		
@@ -140,102 +136,75 @@ public class TopologyInstanceForST{
 	}
 	
 	public void printSTTpo(){
-		log.info("---print Steiner Tree topology after round {}:", round - 1);
-		log.info("terminals: {}", steinerTree.terminals);
-		
-		log.info("---Edges:");
-		for(Long terminal: steinerTree.terminals){
-			log.info(terminal+": {}", steinerTree.metricTreeG.get(terminal));
-		}
-		log.info("---end----");
+		log.info("---Steiner Tree topology after round {}:", round - 1);
+		log.info("---Metric Tree Cost: {}", steinerTree.treeCost);
+		log.info("---Tree Optimal Cost:{}", treeOptCost);
+		log.info("---terminals: {}", steinerTree.terminals);
+		log.info("---Metric Edges: {}", steinerTree.metricTreeG);
+		log.info("---Tracking edge data structure gs: {}", steinerTree.gs);
+		log.info("---Greedy Edge:{}", steinerTree.greedyEdge);
+		log.info("---Swap #:{}, Swapped Edges:{}",steinerTree.swapEdges.size(), steinerTree.swapEdges);
+		log.info("---Removed Edges due to remove request:{}", steinerTree.removeEdges);
+		log.info("---pLinks:{}", steinerTree.pLinks);
+		log.info("---pCost:{}", steinerTree.pCost);
+		log.info("----------");
 
 	}
-	private class SteinerTree {
-		private class MetricEdge implements Comparable<MetricEdge>{
-			Long src;
-			Long dest;
-			ArrayList<Link> actualPath;
-			int metricCost;
-			public MetricEdge(Long src, Long dest, ArrayList<Link> acttualPath,
-					int metricCost) {
-				super();
-				this.src = src;
-				this.dest = dest;
-				this.actualPath = acttualPath;
-				this.metricCost = metricCost;
-			}
-			
-			@Override	
-			public String toString(){
-				return src+"---"+dest+ "%"+ metricCost +"%" +"  ";
-			}
-			
-			public  MetricEdge getSymmetricEdge(){
-				return new MetricEdge(dest,src, 
-										actualPath,metricCost);
-											
-			}
-			
-			@Override
-		    public boolean equals(Object obj){
-				if (!(obj instanceof MetricEdge))
-			            return false;
-				if (obj == this)
-			            return true;
-				MetricEdge other = (MetricEdge) obj;
-				if(src == other.src && dest == other.dest){
-						return true;
-				}
-				if(src == other.dest && dest == other.src){
-						return true;
-				}
-				return false;
-			        
-			}
-			
-			@Override
-			public int compareTo(MetricEdge other) {
-				// TODO Auto-generated method stub
-//				if(src == other.src && dest == other.dest){
-//					return 0;
-//				}
-//				if(src == other.dest && dest == other.src){
-//					return 0;
-//				}
-				return -metricCost + other.metricCost;
-			}
-			
-			Long getOtherEnd(Long v){
-				return v == src? dest: src;
-			}
-			
-			boolean isSrc(Long v){
-				return v == src;
-			}
-		}
-		
+	class SteinerTree {
 		protected Map<Long, ArrayList<MetricEdge>> metricTreeG; //tree edges
 		protected Set<Long> terminals; //current terminals
-//		protected Map<Long, ArrayList<Long>> neighbourMap; //{a-->b,c; b-->a;}
-		protected int treeCost; //currentTree cost
+		protected int treeCost; //currentTree cost in metric space
 		protected HashMap<Integer, MetricEdge> gs;
 		protected int l;  //first round that is larger than epsilon currentOPT
 		
-//		protected ArrayList<Link> addedLink;
-//		protected ArrayList<Link> removedLink;
-//		protected Map<Long, ArrayList<Link>> normTreeG;
+		/*
+		 *
+		 *For Instrumentation Purpose
+		 * 
+		 */
+		protected HashMap<MetricEdge, MetricEdge> swapEdges;
+		protected MetricEdge greedyEdge;
+		protected ArrayList<MetricEdge> removeEdges;
+		//physcial links and cost
+		protected HashSet<Link>	pLinks;
+		protected int pCost;
+
 
 		public SteinerTree(){
 			metricTreeG = new HashMap<Long, ArrayList<MetricEdge>>();
-//			neighbourMap = new HashMap<Long, ArrayList<Long>>();
-//			normTreeG = new HashMap<Long, ArrayList<Link>>();
-//			g = new HashMap<Integer, List<List<Link>>>();
 			gs = new HashMap<Integer, MetricEdge>();
 			terminals = new HashSet<Long>();
-//			addedLink = new ArrayList<Link>();
-//			removedLink = new ArrayList<Link>() ;
+			swapEdges = new HashMap<MetricEdge, MetricEdge>();
+			greedyEdge = null;
+			removeEdges = new ArrayList<MetricEdge>();
+			
+			pLinks = new HashSet<Link>();
+			
 		}
 		
+		public SteinerTree(SteinerTree st){
+			metricTreeG = new HashMap<Long, ArrayList<MetricEdge>>(st.metricTreeG);
+			treeCost = st.treeCost;
+			gs = new HashMap<Integer, MetricEdge>(st.gs);
+			terminals = new HashSet<Long>(st.terminals);
+			l = st.l;
+			swapEdges = new HashMap<MetricEdge, MetricEdge>(st.swapEdges);
+			greedyEdge = new MetricEdge(st.greedyEdge); 
+			removeEdges = new ArrayList<MetricEdge>(st.removeEdges);
+			
+			pLinks = new HashSet<Link>(st.pLinks);
+			
+		}
+		
+		private void preInstrumentation(){
+			swapEdges = new HashMap<MetricEdge, MetricEdge>();
+			greedyEdge = null; 
+			removeEdges = new ArrayList<MetricEdge>();
+			
+			//physical instrumentation
+			pLinks = new HashSet<Link>();
+			pCost = 0;
+		}
 		//convert metric space edges into physical space link
 		public HashMap<Long, HashSet<Link>> getLinkMap(){
 				HashMap<Long, HashSet<Link>> linkMap = new 
@@ -293,23 +262,7 @@ public class TopologyInstanceForST{
 
 		public ArrayList<Link> getAddLinks() {
 			// TODO Auto-generated method stub
-//			HashSet<Link> st = new HashSet();
-//			for(Long node: steinerTree.normTreeG.keySet()){
-//				st.addAll(steinerTree.normTreeG.get(node));
-//
-//			}
-//			HashSet<Link> oldst = new HashSet<Link>();
-//			for(Long node: oldsteinerTree.normTreeG.keySet()){
-//				st.addAll(oldsteinerTree.normTreeG.get(node));
-//			}
-//			st.removeAll(oldst);
-//			return Lists.newArrayList(st);
-			// TODO Auto-generated method stub
 			HashSet<Link> st = new HashSet();
-//						for(Long node: steinerTree.normTreeG.keySet()){
-//							st.addAll(steinerTree.normTreeG.get(node));
-//
-//						}
 			if(steinerTree == null || steinerTree.metricTreeG == null || steinerTree.metricTreeG.size() == 0){
 				return null;
 			}
@@ -319,9 +272,6 @@ public class TopologyInstanceForST{
 				}
 			}
 			HashSet<Link> oldst = new HashSet<Link>();
-//						for(Long node: oldsteinerTree.normTreeG.keySet()){
-//							st.addAll(oldsteinerTree.normTreeG.get(node));
-//						}
 			for(Long node: oldsteinerTree.metricTreeG.keySet()){
 				for(MetricEdge edge:oldsteinerTree.metricTreeG.get(node)){
 					oldst.addAll(edge.actualPath);
@@ -330,6 +280,39 @@ public class TopologyInstanceForST{
 			st.removeAll(oldst);
 			return Lists.newArrayList(st);
 		}
+		
+		/*
+		 * Utilities 
+		 * 
+		 */
+		private void addMetricEdge(Long switchID, MetricEdge me){
+			if(metricTreeG.get(switchID) == null)
+				metricTreeG.put(switchID, new ArrayList<MetricEdge>());
+			metricTreeG.get(switchID).add(me);
+		}
+		
+		private void getPhyInstrument(){
+			pLinks = new HashSet<Link>();
+			
+			for(Long switchid: metricTreeG.keySet()){
+				for(MetricEdge me: metricTreeG.get(switchid)){
+					for(Link link: me.actualPath){
+						pLinks.add(link);
+					}
+				}
+			}
+			
+			pCost = 0;
+			for(Link link: pLinks){
+				pCost += linkCost.get(link);
+			}
+			pCost = pCost/2;
+		}
+		
+		/*
+		 * 
+		 * Core Functions
+		 */
 
 		public void add(Long switchID) {
 			// TODO Auto-generated method stub
@@ -346,11 +329,12 @@ public class TopologyInstanceForST{
 			if(terminals.contains(switchID)){
 				return;
 			}
+			log.info("---Add Ended");
 			
 			HashMap<Long, Integer> metric = (HashMap<Long, Integer>) metricSpaceDist.get(switchID);
 //			terminals.add(switchID);
 			
-			//find shortest path to the tree from new terminal
+			//find shortest path to the tree from new terminal, note removed node is removed from terminal
 			int shortestMetricDist = Integer.MAX_VALUE;
 			Long other=(long) 0;
 			for(Long terminal: terminals){
@@ -358,38 +342,22 @@ public class TopologyInstanceForST{
 				if(distance < shortestMetricDist){
 					shortestMetricDist = distance;
 					other = terminal;
-					gs.put(round, getPath(terminal, switchID));
+//					gs.put(round, getPath(terminal, switchID));
 				}
 			}
 			treeCost = treeCost + shortestMetricDist;
-//			treeOptCost.add(treeCost);
-			
 			MetricEdge edge = getPath(other, switchID);
-			MetricEdge edge2 = getPath(switchID, other);
-			metricTreeG.put(switchID, new ArrayList<MetricEdge>());
-			metricTreeG.get(switchID).add(edge2);
-			metricTreeG.put(other, new ArrayList<MetricEdge>());
-			metricTreeG.get(other).add(edge);
+//			MetricEdge edge2 = getPath(switchID, other);
+			MetricEdge edge2 = edge.reverse();
+			addMetricEdge(other, edge);
+			addMetricEdge(switchID, edge2);
 			gs.put(round, edge);
-//			for(Link link: edge.actualPath){
-//				Long src = link.getSrc();
-//				Long dst = link.getDst();
-////				ArrayList<Link> srclink = normTreeG.get(src);
-////				if(srclink == null)
-////					srclink = new ArrayList<Link>();
-////				srclink.add(link);
-////				normTreeG.put(src, srclink);
-////				ArrayList<Link> dstlink = normTreeG.get(dst);
-//				if(dstlink == null)
-//					dstlink = new ArrayList<Link>();
-//				dstlink.add(link);
-//				normTreeG.put(dst, dstlink);
-//			}
-			//temporarily set current tree cost
-			
+			log.info("add shortest path: {}",  edge);
+			//for instrumentation
+			greedyEdge = new MetricEdge(edge);
 			
 			//get lt[round]
-			l=0;
+			l=-1;
 			for(int i=round-1;i>=0;i--){
 				if (treeCost*epsilon > treeOptCost.get(i)){
 					l = i + 1;
@@ -397,92 +365,106 @@ public class TopologyInstanceForST{
 					break;
 				};
 			}
-			
 			//get removable edges
+			double threshold;
+			threshold = round==l? Double.NaN: epsilon * treeOptCost.get(round-1)/(round-l);
+			log.info("removable edges r1: from round {} to {}", l, round-1);
+			log.info("removable edges r2: cost is larger than： {}", threshold);
 			ArrayList<MetricEdge> removableEdges  = new ArrayList<MetricEdge>();
 			for(int i=l; i<= round-1; i++){
 				if(gs.get(i) == null)
 					continue; //this is an edge that has been deleted
-				if(gs.get(i).metricCost > epsilon * treeOptCost.get(round-1)/(round-l))
+				if(gs.get(i).metricCost > threshold)
 					removableEdges.add(gs.get(i));
 			}
 			Collections.sort(removableEdges);
 			
+			int loopcount=0;
 			//get edges that can replace the removable edges
+			log.info("removable edges candidates of r1 and r2: {}", removableEdges);
 			for(MetricEdge removeEdge: removableEdges){
 				ArrayList<Long> leftTree = new ArrayList<Long>();
 				ArrayList<Long> rightTree = new ArrayList<Long>();
 
 				Long src = removeEdge.src;
+				Long dest= removeEdge.dest;
+				log.info("	Edge remove candidate {}", removeEdge );
+				double threshold2 = removeEdge.metricCost * 1.0/(1+epsilon);
+				log.info("	Swappable edges r3: cost is smaller than： {}", threshold2 );
+
 				LinkedList<Long> toexplore = new LinkedList<Long>();
 				HashMap<Long, Boolean> seen = new HashMap<Long, Boolean>();
 				toexplore.add(src);
+				seen.put(dest, true);
+				int counter=0;
 				while(toexplore.size()!= 0){
-					Long switchid = toexplore.getFirst();
+					Long switchid = toexplore.removeFirst();
+
 					if(seen.containsKey(switchid) == true) continue;
+					leftTree.add(switchid);
 					seen.put(switchid, true);
 					ArrayList<MetricEdge> metricEdges = metricTreeG.get(switchid);
 					for(MetricEdge me: metricEdges){
 						toexplore.add(me.dest);
-						leftTree.add(me.dest);
 					}
 				}
 				
-				Long dest= removeEdge.dest;
 				toexplore.clear();
 				seen.clear();
 				toexplore.add(dest);
+				seen.put(src,  true);
 				while(toexplore.size()!= 0){
-					Long switchid = toexplore.getFirst();
+					Long switchid = toexplore.removeFirst();
 					if(seen.containsKey(switchid) == true) continue;
 					seen.put(switchid, true);
+					rightTree.add(switchid);
 					ArrayList<MetricEdge> metricEdges = metricTreeG.get(switchid);
 					for(MetricEdge me: metricEdges){
 						toexplore.add(me.dest);
-						rightTree.add(me.dest);
 					}
 				}
 				
+				log.info("		Left Tree Dividide by the edge {} ", leftTree);
+				log.info("		Right Tree Dividide by the edge {} ", rightTree);
+
 				for(Long leftnode: leftTree){
 					for(Long rightnode: rightTree){
-						if(metricSpaceDist.get(leftnode).get(rightnode)
-								*(1+epsilon) < removeEdge.metricCost){
+						if(metricSpaceDist.get(leftnode).get(rightnode) < threshold2){
 							metricTreeG.get(removeEdge.src).remove(removeEdge);
-							metricTreeG.get(removeEdge.dest).remove(removeEdge);
-//							for(Link link: removeEdge.actualPath){
-//								normTreeG.get(link.getSrc()).remove(link);
-//								normTreeG.get(link.getDst()).remove(link);
-//							}
-							
+//							metricTreeG.get(removeEdge.dest).remove(removeEdge);
+							metricTreeG.get(removeEdge.dest).remove(removeEdge.reverse());
+
 							MetricEdge addEdge = getPath(leftnode,rightnode);
-							MetricEdge addEdge2 = getPath(rightnode,leftnode);
+//							MetricEdge addEdge2 = getPath(rightnode,leftnode);
+							MetricEdge addEdge2 = addEdge.reverse();
+							log.info("	SWAP: Remove Edge {} with {}", removeEdge,  addEdge);
+							
+							//for instrumentation purpose
+							swapEdges.put(removeEdge, addEdge);
+							
 							metricTreeG.get(leftnode).add(addEdge);
 							metricTreeG.get(rightnode).add(addEdge2);
-//							for(Link link: addEdge.actualPath){
-//								normTreeG.get(link.getSrc()).add(link);
-//								normTreeG.get(link.getDst()).add(link);
-//							}
 							for(int i: gs.keySet()){
-								if(gs.get(i).equals(removeEdge)){
+								if(gs.get(i) == null)
+									continue;
+								if(gs.get(i).equals(removeEdge) || gs.get(i).equals(removeEdge.reverse())){
+									log.info("	replacing gs[{}] with {}", i,  addEdge);
 									gs.put(i, addEdge);
 								}
 							}
 							treeCost = treeCost - removeEdge.metricCost + addEdge.metricCost;
+							log.info("	Adjust currentTreeCost to {}", treeCost);
 						}
 					}
 				}
 			}
-//			ArrayList<Link> path = getShoretestPathToTree(
-//											switchID, 
-//											destinationRootedTrees.get(switchID));
-//			gs.put(round, path);
 			terminals.add(switchID);
+			log.info("---Add Ended");
+
 		}
 		
 		public void remove(Long switchID) {
 			// TODO Auto-generated method stub
-//			addedLink.clear();
-//			removedLink.clear();
 			if(terminals.size() ==  0){
 				return ;
 			}
@@ -501,18 +483,19 @@ public class TopologyInstanceForST{
 					break;
 				case 1:
 					MetricEdge me = meList.get(0);
-					metricTreeG.get(me.dest).
-									remove(me.getSymmetricEdge()); //see if directly delete is okay
+					//for instrumentation
+					removeEdges.add(me);
+					
+//					metricTreeG.get(me.dest).remove(me); //see if directly delete is okay
+					metricTreeG.get(me.dest).remove(me.reverse()); //
+					log.info("Removing edge:{}", me);
 					metricTreeG.remove(switchID);
-//					for(Link link: me.actualPath){
-//						normTreeG.get(link.getSrc()).remove(link);
-//						normTreeG.get(link.getDst()).remove(link);
-//					}
 					treeCost = treeCost - me.metricCost;
 					for(int i:gs.keySet()){
-						if(gs.get(i) != null && gs.get(i).equals(me)){
+						if (gs.get(i) == null)
+								continue;
+						if(gs.get(i).equals(me) || gs.get(i).equals(me.reverse())){
 							gs.put(i, null);
-//							gs.remove(i);
 							break;
 						}
 					}
@@ -522,76 +505,95 @@ public class TopologyInstanceForST{
 					MetricEdge upEdge = meList.get(0);
 					Long upNode = upEdge.dest;
 					MetricEdge downEdge = meList.get(1);
+					
+					//for instrumentation
+					removeEdges.add(upEdge);
+					removeEdges.add(downEdge);
+					
 					Long downNode = downEdge.dest;
 					//remove and add new tunnels
 					metricTreeG.remove(switchID);
-					metricTreeG.get(upNode).remove(upEdge);
-					metricTreeG.get(downNode).remove(downEdge);
+					log.info("removing edge:{} and {}", upEdge, downEdge);
+//					metricTreeG.get(upNode).remove(upEdge);
+//					metricTreeG.get(downNode).remove(downEdge);
+					metricTreeG.get(upNode).remove(upEdge.reverse());
+					metricTreeG.get(downNode).remove(downEdge.reverse());
 					MetricEdge newEdge = getPath(upNode, downNode);
-					MetricEdge newEdgeSym = newEdge.getSymmetricEdge();
+//					MetricEdge newEdgeSym = getPath(downNode, upNode);
+					MetricEdge newEdgeSym = newEdge.reverse();
+					log.info("adding edge:{} and {}", newEdge, newEdgeSym);
 					metricTreeG.get(upNode).add(newEdge);
 					metricTreeG.get(downNode).add(newEdgeSym);
 					treeCost = treeCost + newEdge.metricCost
 										- upEdge.metricCost
 										- downEdge.metricCost;
 					for(int i:gs.keySet()){
-						if(gs.get(i).equals(upEdge) || gs.get(i).equals(downEdge)){
-							gs.remove(i);
-							break;
+						if(gs.get(i) == null)
+							continue;
+						if(gs.get(i).equals(upEdge) || gs.get(i).equals(upEdge.reverse())){
+							gs.put(i, null);
+						}
+						else if(gs.get(i).equals(downEdge) || gs.get(i).equals(downEdge.reverse())){
+							gs.put(i, null);
 						}
 					}
 					gs.put(round, newEdge);
 					break;
 				default: 
-					Collections.sort(meList);
-					MetricEdge oldToNewEdge = meList.get(meList.size()-1);
-					Long newcenter = oldToNewEdge.dest; //last one with smallest dist to the oldremoved node
-					//add and remove edgeds in metricTreeG
-					metricTreeG.remove(switchID);
-					
-					metricTreeG.get(newcenter).remove(oldToNewEdge.getSymmetricEdge());
-					for(int i=0;i<meList.size()-1;i++){
-						MetricEdge edge = meList.get(i);
-						Long node = edge.dest;
-						metricTreeG.get(node).remove(edge.getSymmetricEdge());
-						ArrayList<Link> pathToNewCenter = new ArrayList<Link>();
-						pathToNewCenter.addAll(edge.actualPath);
-						pathToNewCenter.addAll(oldToNewEdge.actualPath);
-						MetricEdge edgeToNewCenter = new MetricEdge(node, newcenter,
-								pathToNewCenter,edge.metricCost + oldToNewEdge.metricCost);
-						metricTreeG.get(node).add(edgeToNewCenter);
-						metricTreeG.get(newcenter).add(edgeToNewCenter.getSymmetricEdge());
-						for(int j:gs.keySet()){
-							if(gs.get(j).equals(edge)){
-								gs.put(j, edgeToNewCenter);
-								break;
-							}
-						}
-					}
+					log.info("Degree of {} is {}, no need to remove", 
+							new Object[]{
+								switchID,
+								meList.size()
+					});
+					gs.put(round, null);
+//					Collections.sort(meList);
+//					MetricEdge oldToNewEdge = meList.get(meList.size()-1);
+//					Long newcenter = oldToNewEdge.dest; //last one with smallest dist to the oldremoved node
+//					//add and remove edgeds in metricTreeG
+//					metricTreeG.remove(switchID);
+//					
+//					metricTreeG.get(newcenter).remove(oldToNewEdge.getSymmetricEdge());
+//					for(int i=0;i<meList.size()-1;i++){
+//						MetricEdge edge = meList.get(i);
+//						Long node = edge.dest;
+//						metricTreeG.get(node).remove(edge.getSymmetricEdge());
+//						ArrayList<Link> pathToNewCenter = new ArrayList<Link>();
+//						pathToNewCenter.addAll(edge.actualPath);
+//						pathToNewCenter.addAll(oldToNewEdge.actualPath);
+//						MetricEdge edgeToNewCenter = new MetricEdge(node, newcenter,
+//								pathToNewCenter,edge.metricCost + oldToNewEdge.metricCost);
+//						metricTreeG.get(node).add(edgeToNewCenter);
+//						metricTreeG.get(newcenter).add(edgeToNewCenter.getSymmetricEdge());
+//						for(int j:gs.keySet()){
+//							if(gs.get(j).equals(edge)){
+//								gs.put(j, edgeToNewCenter);
+//								break;
+//							}
+//						}
+//					}
 					break;
 			}
 			
 		}
-		
-		private MetricEdge getPath(Long src, Long dst){
-			BroadcastTree tree = destinationRootedTrees.get(dst);
-			if(src == dst){
-				return null;
-			}
-			ArrayList<Link> path = new ArrayList<Link>();
-			int cost = 0;
-			Long tmpsrc = src;
-			do{
-				Link link = tree.getTreeLink(tmpsrc);
-				if(link == null) break;
-				cost += tree.getCost(src);
-				tmpsrc = link.getDst();
-				path.add(link);
-			}while(true);
-			MetricEdge metricEdge = new MetricEdge(src, dst, path, cost );
-			return metricEdge;
+	}
+	
+	protected static MetricEdge getPath(Long src, Long dst){
+		BroadcastTree tree = destinationRootedTrees.get(dst);
+		if(src == dst){
+			return null;
 		}
-		
+		ArrayList<Link> path = new ArrayList<Link>();
+		int cost = tree.getCost(src);
+		Long tmpsrc = src;
+		do{
+			Link link = tree.getTreeLink(tmpsrc);
+			if(link == null) break;
+//			cost += tree.getCost(src);
+			tmpsrc = link.getDst();
+			path.add(link);
+		}while(true);
+		MetricEdge metricEdge = new MetricEdge(src, dst, path, cost );
+		return metricEdge;
 	}
 
 }
