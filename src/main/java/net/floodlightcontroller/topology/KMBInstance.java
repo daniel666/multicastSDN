@@ -229,8 +229,8 @@ public class KMBInstance {
 				oldlinkset.add(new Link(src, 0, dst, 0 ));
 			}
 		}
-		log.info("KMB plink set:{}", linkset);
-		log.info("KMB old plink set:{}", oldlinkset);
+//		log.info("KMB plink set:{}", linkset);
+//		log.info("KMB old plink set:{}", oldlinkset);
 		linkdiff = Sets.symmetricDifference(linkset, oldlinkset).immutableCopy();
 		diffpLinks = linkdiff.size() / 2;
 

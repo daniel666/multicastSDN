@@ -6,10 +6,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 
 import net.floodlightcontroller.routing.BroadcastTree;
 import net.floodlightcontroller.routing.Link;
+import net.floodlightcontroller.topology.KMBInstance.NodeDist;
 
 import org.python.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -313,11 +315,90 @@ public class TopologyInstanceForST{
 		 * 
 		 * Core Functions
 		 */
+		private void doSwap(MetricEdge removeEdge, MetricEdge replaceEdge){
+			metricTreeG.get(removeEdge.src).remove(removeEdge);
+			metricTreeG.get(removeEdge.dest).remove(removeEdge.reverse());
+			
+			addMetricEdge(replaceEdge.src, replaceEdge);
+			addMetricEdge(replaceEdge.dest, replaceEdge.reverse());
+//			metricTreeG.get(replaceEdge.src).add(replaceEdge);
+//			metricTreeG.get(replaceEdge.dest).add(replaceEdge.reverse());
+			log.info("	SWAP: Remove Edge {} with {}", removeEdge,  replaceEdge);
+			
+			//for instrumentation purpose
+			swapEdges.put(removeEdge, replaceEdge);
+			for(int i: gs.keySet()){
+				if(gs.get(i) == null)
+					continue;
+				if(gs.get(i).equals(removeEdge) || gs.get(i).equals(removeEdge.reverse())){
+					log.info("	replacing gs[{}] with {}", i,  replaceEdge);
+					gs.put(i, replaceEdge);
+				}
+			}
+			treeCost = treeCost - removeEdge.metricCost + replaceEdge.metricCost;
+			log.info("	Adjust currentTreeCost to {}", treeCost);
+		}
+		
+		private MetricEdge getSwapEdge(MetricEdge removeEdge){
+			MetricEdge replaceEdge = null;
+			
+			ArrayList<Long> leftTree = new ArrayList<Long>();
+			ArrayList<Long> rightTree = new ArrayList<Long>();
 
+			Long src = removeEdge.src;
+			Long dest= removeEdge.dest;
+			log.info("	Edge remove candidate {}", removeEdge );
+			double threshold2 = removeEdge.metricCost * 1.0/(1+epsilon);
+			log.info("	Swappable edges r3: cost is smaller than： {}", threshold2 );
+
+			LinkedList<Long> toexplore = new LinkedList<Long>();
+			HashMap<Long, Boolean> seen = new HashMap<Long, Boolean>();
+			toexplore.add(src);
+			seen.put(dest, true);
+			while(toexplore.size()!= 0){
+				Long switchid = toexplore.removeFirst();
+
+				if(seen.containsKey(switchid) == true) continue;
+				leftTree.add(switchid);
+				seen.put(switchid, true);
+				ArrayList<MetricEdge> metricEdges = metricTreeG.get(switchid);
+				for(MetricEdge me: metricEdges){
+					if(seen.containsKey(me.dest) == false)
+						toexplore.add(me.dest);
+				}
+			}
+			
+			toexplore.clear();
+			seen.clear();
+			toexplore.add(dest);
+			seen.put(src,  true);
+			while(toexplore.size()!= 0){
+				Long switchid = toexplore.removeFirst();
+				if(seen.containsKey(switchid) == true) continue;
+				seen.put(switchid, true);
+				rightTree.add(switchid);
+				ArrayList<MetricEdge> metricEdges = metricTreeG.get(switchid);
+				for(MetricEdge me: metricEdges){
+					if(seen.containsKey(me.dest) == false)
+						toexplore.add(me.dest);
+				}
+			}
+			
+			log.info("		Left Tree Dividide by the edge {} ", leftTree);
+			log.info("		Right Tree Dividide by the edge {} ", rightTree);
+
+			for(Long leftnode: leftTree){
+				for(Long rightnode: rightTree){
+					if(metricSpaceDist.get(leftnode).get(rightnode) < threshold2){
+						replaceEdge = getPath(leftnode, rightnode);
+					}
+				}
+			}
+			
+			return replaceEdge;
+		}
 		public void add(Long switchID) {
 			// TODO Auto-generated method stub
-//			addedLink.clear();
-//			removedLink.clear();
 			if(terminals.size() ==  0){
 				terminals.add(switchID);
 				treeCost = 0;
@@ -329,7 +410,7 @@ public class TopologyInstanceForST{
 			if(terminals.contains(switchID)){
 				return;
 			}
-			log.info("---Add Ended");
+			log.info("---Add Started");
 			
 			HashMap<Long, Integer> metric = (HashMap<Long, Integer>) metricSpaceDist.get(switchID);
 //			terminals.add(switchID);
@@ -370,94 +451,110 @@ public class TopologyInstanceForST{
 			threshold = round==l? Double.NaN: epsilon * treeOptCost.get(round-1)/(round-l);
 			log.info("removable edges r1: from round {} to {}", l, round-1);
 			log.info("removable edges r2: cost is larger than： {}", threshold);
-			ArrayList<MetricEdge> removableEdges  = new ArrayList<MetricEdge>();
+//			ArrayList<MetricEdge> removableEdges  = new ArrayList<MetricEdge>();
+			PriorityQueue<MetricEdge> rmcandidates = new PriorityQueue<MetricEdge>();
+
 			for(int i=l; i<= round-1; i++){
 				if(gs.get(i) == null)
 					continue; //this is an edge that has been deleted
 				if(gs.get(i).metricCost > threshold)
-					removableEdges.add(gs.get(i));
+//					removableEdges.add(gs.get(i));
+					rmcandidates.add(gs.get(i));
 			}
-			Collections.sort(removableEdges);
+//			Collections.sort(removableEdges);
 			
-			int loopcount=0;
+			
 			//get edges that can replace the removable edges
-			log.info("removable edges candidates of r1 and r2: {}", removableEdges);
-			for(MetricEdge removeEdge: removableEdges){
-				ArrayList<Long> leftTree = new ArrayList<Long>();
-				ArrayList<Long> rightTree = new ArrayList<Long>();
-
-				Long src = removeEdge.src;
-				Long dest= removeEdge.dest;
-				log.info("	Edge remove candidate {}", removeEdge );
-				double threshold2 = removeEdge.metricCost * 1.0/(1+epsilon);
-				log.info("	Swappable edges r3: cost is smaller than： {}", threshold2 );
-
-				LinkedList<Long> toexplore = new LinkedList<Long>();
-				HashMap<Long, Boolean> seen = new HashMap<Long, Boolean>();
-				toexplore.add(src);
-				seen.put(dest, true);
-				int counter=0;
-				while(toexplore.size()!= 0){
-					Long switchid = toexplore.removeFirst();
-
-					if(seen.containsKey(switchid) == true) continue;
-					leftTree.add(switchid);
-					seen.put(switchid, true);
-					ArrayList<MetricEdge> metricEdges = metricTreeG.get(switchid);
-					for(MetricEdge me: metricEdges){
-						toexplore.add(me.dest);
-					}
-				}
-				
-				toexplore.clear();
-				seen.clear();
-				toexplore.add(dest);
-				seen.put(src,  true);
-				while(toexplore.size()!= 0){
-					Long switchid = toexplore.removeFirst();
-					if(seen.containsKey(switchid) == true) continue;
-					seen.put(switchid, true);
-					rightTree.add(switchid);
-					ArrayList<MetricEdge> metricEdges = metricTreeG.get(switchid);
-					for(MetricEdge me: metricEdges){
-						toexplore.add(me.dest);
-					}
-				}
-				
-				log.info("		Left Tree Dividide by the edge {} ", leftTree);
-				log.info("		Right Tree Dividide by the edge {} ", rightTree);
-
-				for(Long leftnode: leftTree){
-					for(Long rightnode: rightTree){
-						if(metricSpaceDist.get(leftnode).get(rightnode) < threshold2){
-							metricTreeG.get(removeEdge.src).remove(removeEdge);
-//							metricTreeG.get(removeEdge.dest).remove(removeEdge);
-							metricTreeG.get(removeEdge.dest).remove(removeEdge.reverse());
-
-							MetricEdge addEdge = getPath(leftnode,rightnode);
-//							MetricEdge addEdge2 = getPath(rightnode,leftnode);
-							MetricEdge addEdge2 = addEdge.reverse();
-							log.info("	SWAP: Remove Edge {} with {}", removeEdge,  addEdge);
-							
-							//for instrumentation purpose
-							swapEdges.put(removeEdge, addEdge);
-							
-							metricTreeG.get(leftnode).add(addEdge);
-							metricTreeG.get(rightnode).add(addEdge2);
-							for(int i: gs.keySet()){
-								if(gs.get(i) == null)
-									continue;
-								if(gs.get(i).equals(removeEdge) || gs.get(i).equals(removeEdge.reverse())){
-									log.info("	replacing gs[{}] with {}", i,  addEdge);
-									gs.put(i, addEdge);
-								}
-							}
-							treeCost = treeCost - removeEdge.metricCost + addEdge.metricCost;
-							log.info("	Adjust currentTreeCost to {}", treeCost);
-						}
-					}
-				}
+			log.info("removable edges candidates of r1 and r2: {}", rmcandidates);
+			while(true){
+				if(rmcandidates.peek()==null)
+					break;
+				MetricEdge removeEdge = rmcandidates.poll();
+				MetricEdge swapinEdge = getSwapEdge(removeEdge);
+				if(swapinEdge == null)
+					break;
+				doSwap(removeEdge, swapinEdge);
+				rmcandidates.add(swapinEdge);
 			}
+//----------------------------------------------------------------
+//			for(MetricEdge removeEdge: removableEdges){
+//				ArrayList<Long> leftTree = new ArrayList<Long>();
+//				ArrayList<Long> rightTree = new ArrayList<Long>();
+//
+//				Long src = removeEdge.src;
+//				Long dest= removeEdge.dest;
+//				log.info("	Edge remove candidate {}", removeEdge );
+//				double threshold2 = removeEdge.metricCost * 1.0/(1+epsilon);
+//				log.info("	Swappable edges r3: cost is smaller than： {}", threshold2 );
+//
+//				LinkedList<Long> toexplore = new LinkedList<Long>();
+//				HashMap<Long, Boolean> seen = new HashMap<Long, Boolean>();
+//				toexplore.add(src);
+//				seen.put(dest, true);
+//				int counter=0;
+//				while(toexplore.size()!= 0){
+//					Long switchid = toexplore.removeFirst();
+//
+//					if(seen.containsKey(switchid) == true) continue;
+//					leftTree.add(switchid);
+//					seen.put(switchid, true);
+//					ArrayList<MetricEdge> metricEdges = metricTreeG.get(switchid);
+//					for(MetricEdge me: metricEdges){
+//						toexplore.add(me.dest);
+//					}
+//				}
+//				
+//				toexplore.clear();
+//				seen.clear();
+//				toexplore.add(dest);
+//				seen.put(src,  true);
+//				while(toexplore.size()!= 0){
+//					Long switchid = toexplore.removeFirst();
+//					if(seen.containsKey(switchid) == true) continue;
+//					seen.put(switchid, true);
+//					rightTree.add(switchid);
+//					ArrayList<MetricEdge> metricEdges = metricTreeG.get(switchid);
+//					for(MetricEdge me: metricEdges){
+//						toexplore.add(me.dest);
+//					}
+//				}
+//				
+//				log.info("		Left Tree Dividide by the edge {} ", leftTree);
+//				log.info("		Right Tree Dividide by the edge {} ", rightTree);
+//
+//				for(Long leftnode: leftTree){
+//					for(Long rightnode: rightTree){
+//						if(metricSpaceDist.get(leftnode).get(rightnode) < threshold2){
+//							metricTreeG.get(removeEdge.src).remove(removeEdge);
+////							metricTreeG.get(removeEdge.dest).remove(removeEdge);
+//							metricTreeG.get(removeEdge.dest).remove(removeEdge.reverse());
+//
+//							MetricEdge addEdge = getPath(leftnode,rightnode);
+////							MetricEdge addEdge2 = getPath(rightnode,leftnode);
+//							MetricEdge addEdge2 = addEdge.reverse();
+//							log.info("	SWAP: Remove Edge {} with {}", removeEdge,  addEdge);
+//							
+//							//for instrumentation purpose
+//							swapEdges.put(removeEdge, addEdge);
+//							
+//							metricTreeG.get(leftnode).add(addEdge);
+//							metricTreeG.get(rightnode).add(addEdge2);
+//							for(int i: gs.keySet()){
+//								if(gs.get(i) == null)
+//									continue;
+//								if(gs.get(i).equals(removeEdge) || gs.get(i).equals(removeEdge.reverse())){
+//									log.info("	replacing gs[{}] with {}", i,  addEdge);
+//									gs.put(i, addEdge);
+//								}
+//							}
+//							treeCost = treeCost - removeEdge.metricCost + addEdge.metricCost;
+//							log.info("	Adjust currentTreeCost to {}", treeCost);
+//						}
+//					}
+//				}
+//			}
+			
+			
 			terminals.add(switchID);
 			log.info("---Add Ended");
 
@@ -522,8 +619,12 @@ public class TopologyInstanceForST{
 //					MetricEdge newEdgeSym = getPath(downNode, upNode);
 					MetricEdge newEdgeSym = newEdge.reverse();
 					log.info("adding edge:{} and {}", newEdge, newEdgeSym);
-					metricTreeG.get(upNode).add(newEdge);
-					metricTreeG.get(downNode).add(newEdgeSym);
+					
+					addMetricEdge(upNode, newEdge);
+					addMetricEdge(downNode, newEdgeSym);
+					
+//					metricTreeG.get(upNode).add(newEdge);
+//					metricTreeG.get(downNode).add(newEdgeSym);
 					treeCost = treeCost + newEdge.metricCost
 										- upEdge.metricCost
 										- downEdge.metricCost;
