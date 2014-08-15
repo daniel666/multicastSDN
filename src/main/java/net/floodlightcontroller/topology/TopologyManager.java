@@ -788,10 +788,10 @@ public class TopologyManager implements
     	kmbInstance.print();
     	
     	
-    	double ratio = Double.NaN ;
-    	if(sharedTreeInstance.cost != 0)
-    		ratio = stInstance.steinerTree.treeCost * 1.0 / sharedTreeInstance.cost;
-    	log.info("	++++Metric cost ratio to SPT= {}", ratio);
+//    	double ratio = Double.NaN ;
+//    	if(sharedTreeInstance.cost != 0)
+//    		ratio = stInstance.steinerTree.treeCost * 1.0 / sharedTreeInstance.cost;
+//    	log.info("	++++Metric cost ratio to SPT= {}", ratio);
     	double  ratio2 = Double.NaN;
     	if(sharedTreeInstance.pCost !=0 )
     		ratio2 = stInstance.steinerTree.pCost * 1.0 / sharedTreeInstance.pCost;
@@ -801,7 +801,6 @@ public class TopologyManager implements
     	if(kmbInstance.pCost !=0)
     		ratioToKMB = stInstance.steinerTree.pCost * 1.0 / kmbInstance.pCost;
     	log.info("	++++Physical Cost ratio to KMB = {}", ratioToKMB);
-    	log.info("	+++++++++++++++++END++++++++++++++++++++++");
     	
     	/*
     	 * save stat to file
@@ -811,14 +810,27 @@ public class TopologyManager implements
     	Set<Link> stchangelinks = Sets.symmetricDifference(stInstance.oldsteinerTree.pLinks, stInstance.steinerTree.pLinks).
 				immutableCopy();
     	int linkchange = stchangelinks.size()/2;
-    	log.info("_____steiner tree changed links:{}",stchangelinks);
+//    	log.info("_____steiner tree changed links:{}",stchangelinks);
         stSwapNum.add(linkchange);
         
         sharedtreePCost.add(sharedTreeInstance.pCost);
         sharedtreePLinkchange.add(sharedTreeInstance.linkdff);
+        
+        double  ratiolinkchange = Double.NaN;
+    	if(sharedTreeInstance.linkdff !=0 )
+    		ratiolinkchange = linkchange * 1.0 / sharedTreeInstance.linkdff;
+    	log.info("	++++Link change ratio to SPT= {}", ratiolinkchange);
+
 
         KMBPCost.add(kmbInstance.pCost);
         KMBPLinkchange.add(kmbInstance.diffpLinks);
+
+        double  ratiolinkchange2 = Double.NaN;
+    	if(kmbInstance.diffpLinks !=0 )
+    		ratiolinkchange2 = linkchange * 1.0 / kmbInstance.diffpLinks;
+    	log.info("	++++Link change ratio to kbmInstance= {}", ratiolinkchange2);
+    	log.info("	+++++++++++++++++END++++++++++++++++++++++\n\n");
+
     	PrintWriter writer = null;
 		try {
 			writer = new PrintWriter("/home/xushunyi/log.data");

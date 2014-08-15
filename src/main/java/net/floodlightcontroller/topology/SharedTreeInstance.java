@@ -42,6 +42,7 @@ public class SharedTreeInstance {
 				root = switchID;
 				break;
 			}
+			log.info("NNNNNNNNNNNNNNNNNNNNN switchID:{}, root:{}", switchID, root);
 			me = TopologyInstanceForST.getPath(switchID, root);
 //			meR = TopologyInstanceForST.getPath(root, switchID);
 			meR = me.reverse();
@@ -104,9 +105,9 @@ public class SharedTreeInstance {
 	public void print() {
 		// TODO Auto-generated method stub
 		log.info("	***Shared Tree topology after round {}:", round - 1);
-		log.info("	***Logical Tree Cost: {}", cost);
+//		log.info("	***Logical Tree Cost: {}", cost);
 		log.info("	***terminals: {}", terminals);
-		log.info("	***Logical Edges: {}", edges);
+//		log.info("	***Logical Edges: {}", edges);
 		log.info("	***Pysical Links:{}", pLinks);
 		log.info("	***Pysical Tree Cost:{}", pCost);
 		log.info("  ***Num of different links:{}", linkdff);
