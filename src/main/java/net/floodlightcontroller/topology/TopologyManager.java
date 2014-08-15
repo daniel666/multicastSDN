@@ -833,7 +833,7 @@ public class TopologyManager implements
 
     	PrintWriter writer = null;
 		try {
-			writer = new PrintWriter("/home/xushunyi/log.data");
+			writer = new PrintWriter("/home/xushunyi/controlleroutput/log.data");
 //			writer.println(stMetricCost.toString());
 			writer.println(stPCost.toString());
 	    	writer.println(stSwapNum.toString());

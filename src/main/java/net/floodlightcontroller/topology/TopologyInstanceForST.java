@@ -442,8 +442,8 @@ public class TopologyInstanceForST{
 				}
 			}
 			
-			log.info("		Left Tree Dividide by the edge {} ", leftTree);
-			log.info("		Right Tree Dividide by the edge {} ", rightTree);
+			log.info("		Left Tree Divided by the edge {} ", leftTree);
+			log.info("		Right Tree Divided by the edge {} ", rightTree);
 			
 			Set set1 = new HashSet(leftTree);
 			Set set2 = new HashSet(rightTree);
@@ -465,6 +465,7 @@ public class TopologyInstanceForST{
 			if(terminals.size() ==  0){
 				terminals.add(switchID);
 				treeCost = 0;
+				metricTreeG.put(switchID, new ArrayList<MetricEdge>());
 				gs.put(round, null);
 				l = 0; 
 //				lt.add(treeCost);
@@ -477,15 +478,22 @@ public class TopologyInstanceForST{
 			
 			HashMap<Long, Integer> metric = (HashMap<Long, Integer>) metricSpaceDist.get(switchID);
 			
-			//find shortest path to the tree from new terminal, note removed node is removed from terminal
+			//find shortest path to the tree's terminal from new terminal, note removed node is removed from terminal
 			int shortestMetricDist = Integer.MAX_VALUE;
 			Long other=(long) 0;
-			for(Long terminal: terminals){
-				int distance = metric.get(terminal);
+//			for(Long terminal: terminals){
+//				int distance = metric.get(terminal);
+//				if(distance < shortestMetricDist){
+//					shortestMetricDist = distance;
+//					other = terminal;
+//				}
+//			}
+			//find shortest path to the tree from new terminal
+			for(Long node: metricTreeG.keySet()){
+				int distance = metric.get(node);
 				if(distance < shortestMetricDist){
 					shortestMetricDist = distance;
-					other = terminal;
-//					gs.put(round, getPath(terminal, switchID));
+					other = node;
 				}
 			}
 			treeCost = treeCost + shortestMetricDist;
